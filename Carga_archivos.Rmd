@@ -1,0 +1,123 @@
+---
+title: "Carpetas comprimidas con subcarpetas de la web"
+author: "Gustavo Rojas Andrade"
+output: github_document
+---
+***Si este documento te es de utilidad, por favor cítalo.***
+
+---
+# Cómo importar tablas del INEGI a RStudio sin almacenar los archivos en la PC
+
+## Introducción
+
+Dos de los problemas de trabajar con tablas de la web, suele ser el tamaño y la actualización de las mismas. En este caso práctico se desarrolla un algoritmo con el contenido ofrecido por el INEGI (organismo mexicano). La información recabada por este organismo es puesto a disposición de la ciudadanía por medio de su [portal web](https://www.inegi.org.mx/siscon/) en archivos comprimidos que no solicitan de claves de acceso para su descarga y uso.
+
+> En el caso de algunos archivos, se puede acceder a ellos con la función de importación de datos mediante el URL sin mayor dificultad. Sin embargo, los archivos del INEGI suelen contener los metadatos correspondientes a la tabla, un archivo guía para la lectura de la tabla (*diccionario*) y la tabla en un formato *.csv* o *.xlsx*.
+
+
+Por ello realicé este pequeño tutorial. En éste se muestra cómo trabajar con este tipo de tablas, sin la necesidad de descargar los archivos a nuestros ordenadores. Posibilitando en otros casos, que la actualización de los resultados esté en función de la actualización de los archivos dispuestos por el organismo, si no se realizan modificaciones importantes en la estructura del portal web. 
+
+Otra de las ventajas de realizarlo de esta manera es el de favorecer la reproducibilidad del análisis con la extracción del código. En vez de descargar los archivos en los diferentes ordenadores y cambiar las rutas de acceso a los archivos, es posible transferir el código al entorno adecuado y correrlos en el segundo o tercer ordenador.
+
+# Lectura de tablas
+
+## Carga de paquetes
+
+El algortimo requerirá la lectura de las tablas, por lo que es importante identificar el formato de la tabla ofrecida, por lo que podrá requerir de los paquetes `readr` o `readxl`, según sea el caso. En este caso se utiliza una tabla con el formato *comma separated values* o *csv*, por lo que se carga el paquete correspondiente, como se muestra a continuación. 
+
+```{r, warning=FALSE}
+library(readr)
+```
+
+## Descompresión del contenido
+
+Para el ejercicio mostrado a continuación se inspecciona el contenido de las tablas ***Servicios educativos*** del protal citado anteriormente. El archivo a utilizar contiene 3 carpetas y cada una de ellas almacena un archivo. Se inspecciona el contenido y se presenta a continuación.
+
+El siguiente bloque contiene el URL del cual se extraen los archivos que contienen las tablas a trabajar. Como se verá, este archivo se encuentra comprimido, por lo cual se procede con la descompresión del archivo. 
+
+```{r url}
+url = "https://www.inegi.org.mx/contenidos/masiva/denue/denue_00_61_csv.zip"
+
+temp = tempfile() # Esta función crea un archivo temporal que se usa para los archivos a trabajar
+temp2 = tempfile()
+
+download.file(url, temp) # Ejecuta la descarga del archivo o carpeta a descomprimir
+unzip(zipfile = temp, exdir = temp2) # Descomprime el archivo almacenándolo en el segundo objeto que contiene al archivo temporal
+```
+
+Es recomendable realizar una inspección del elemento descomprimido. Ello nos indicará el nombre de los archivos o carpetas que están contenidos. En este caso (y como se verá en el siguiente bloque), el archivo tiene otras carpetas que contienen a los archivos que se utilizarán. Los nombres de las carpetas se presenta en una lista, permitiendo tener una idea clara del contenido de cada una de éstas.
+
+```{r contenido}
+list.files(temp2) 
+#list.dirs(temp2) # Si se opta por otro método, list.dirs() muestra las direcciones de los archivos y carpetas
+```
+
+## Navegación por carpetas
+
+Debido a que la carpeta descomprimida contiene otras carpetas, se procede con la inspección del contenido de las mismas. Nuevamente se utiliza la función `list.path()` para revisar los nombres de los archivos, dirigiendo la inspección por medio de la función `file.path()`. 
+
+> De manera alternativa, podría crearse un nuevo objeto con la dirección de la subcarpeta, pero cuando se tiene más de un archivo, se puede crear un gran número de objetos. Por cuestión estética del entorno de trabajo no se realiza de esta manera, pero es posible.
+
+### Metadatos
+
+Se comienza con la inspección de los archivos de la carpeta de *metadatos* debido a que este orden puede darle una mejor estructura a un trabajo posterior. El siguiente bloque muestra que el archivo contenido es un archivo es un archivo *.txt*.
+
+```{r navegación}
+list.files(file.path(temp2,"metadatos")) #Este código se puede utilizar con cada una de las carpetas como se mostrará posteriormente.
+```
+El siguiente bloque muestra una de las maneras de presentar el contenido del archivo de texto. En este caso, los metadatos de la tabla que se presentará posteriormente; recordando que los metadatos de una tabla son de importancia para un análisis porque en ellos se muestra mucha de la información respecto a los datoss, como puede ser el método de colecta de datos, el área que describe, la institución o personas que realizaron la colecta de datos, la temporalidad de colecta, la última fecha de modificación, entre otra.
+
+```{r metadatos}
+Sedu_metadata = read.table(file.path(temp2, "metadatos","metadatos_denue.txt"),sep = "\t")
+knitr::kable(Sedu_metadata)
+```
+
+### Diccionario
+
+Para la inspección del contenido del diccionario, o del archivo correspondiente se inspecciona la ruta. Este archivo contiene información que nos ayudará a comprender mejor el contenido de la tabla principal. El bloque siguiente muestra el código de manera reducida, pero su implementación se sugiere línea por línea. 
+
+```{r diccionario, echo= TRUE, eval=FALSE}
+list.files(file.path(temp2,"diccionario_de_datos")) # Muuestra lor archivos de la capreta diccionario
+Sedu_dicc <- read.csv(file.path(temp2,"diccionario_de_datos","denue_diccionario_de_datos.csv")) #Designamos al objeto con ayuda de la ruta que se trazó.
+Sedu_dicc #Se visualiza el contenido del segundo archivo. Se pueden utilizar otros métodos de visualización como la función View() dentro del entor no de RSTudio 
+#View(Sedu_dicc)
+```
+
+```{r diccionario2, echo=FALSE}
+# Sólo para la salida gráfica de este documento.
+
+list.files(file.path(temp2,"diccionario_de_datos")) 
+Sedu_dicc <- read.csv(file.path(temp2,"diccionario_de_datos","denue_diccionario_de_datos.csv"))
+Sedu_dicc
+#View(Sedu_dicc)
+```
+
+### Tabla principal. **Servicios educativos**
+
+Por último se importa la tabla principal. De la misma manera a la tabla anterior, se puede facilitar la inspección del contenido por medio de la función `View()` u otro método.
+
+```{r alternativa, include=FALSE, eval=FALSE}
+## Alternativa que se mencionó anteriormente
+
+#temp3 = file.path(temp2, "conjunto_de_datos")
+#list.files(temp3)
+#Sedu <- read.csv(file.path(temp3,"denue_inegi_61_.csv"))
+```
+
+```{r tabla principal, echo=TRUE, eval=FALSE}
+Sedu <- read.csv(file.path(temp2,"conjunto_de_datos","denue_inegi_61_.csv"))
+head(Sedu, 4)
+#View(Sedu)
+unlink(c(temp, temp2))
+```
+
+```{r tabla principal2, echo=FALSE}
+Sedu <- read.csv(file.path(temp2,"conjunto_de_datos","denue_inegi_61_.csv"))
+head(Sedu, 4)
+#View(Sedu)
+unlink(c(temp, temp2))
+```
+
+Se puede hacer de manera similar para los distintos recursos que ofrece el INEGI, modificando a la URL correspondiente, y realizando la inspección de los elementos como es debido. Como se mencionó en un inicio, este algoritmo puede ser fácilmente uno de los primeros pasos para el análisis de contenido e implemntaación de técnicas analíticas posteriores, facilitando su reproducibilidad. 
+
+Espero les sea de ayuda y les invito a citar esta fuente si la encuentran de utilidad. 
